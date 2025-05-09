@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SWE Routine Filter</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        .input-container {
+            margin-bottom: 20px;
+        }
+        input[type="number"] {
+            padding: 10px;
+            font-size: 16px;
+            width: 100px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        button {
+            padding: 10px 15px;
+            margin-left: 10px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background-color: #fff;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background-color: #4CAF50;
+            color: white;
+        }
+        tr:hover {
+            background-color: #f5f5f5;
+        }
+        .error {
+            color: red;
+            margin-bottom: 20px;
+        }
+        .loading {
+            color: blue;
+            margin-bottom: 20px;
+        }
+        #log {
+            margin-top: 20px;
+            white-space: pre-wrap;
+            background: #eee;
+            padding: 10px;
+            border-radius: 5px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+     <div class="input-container">
+		<label for="limit">Number of Records to Show: </label>
+		<input type="number" id="limit" min="1" value="5" oninput="updateTable()">
+		<button onclick="uploadToSupabase()">Load to Supabase</button>
+		<div id="log" style="margin-top: 10px; white-space: pre-wrap; background: #eee; padding: 10px; border-radius: 5px; max-height: 300px; overflow-y: auto;"></div>
+	</div>
+    <div id="loading" class="loading" style="display: none;">Loading...</div>
+    <div id="error" class="error" style="display: none;"></div>
+    <table id="routineTable">
+        <thead>
+            <tr>
+                <th>Department</th>
+                <th>Day</th>
+                <th>Room</th>
+                <th>Time</th>
+                <th>Batch</th>
+                <th>Section</th>
+                <th>Course</th>
+                <th>Teacher</th>
+            </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+    </table>
+
+    <script>
+        let data = [];
+
+        const SUPABASE_URL = 'https://turoitkiwlwybnjgilbh.supabase.co';
+        const SUPABASE_API_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR1cm9pdGtpd2x3eWJuamdpbGJoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDY4MTIyMjYsImV4cCI6MjA2MjM4ODIyNn0.ZSQWRGrNvR5iIBnwlUeNUdBM2zlB9J9F7Vzigc6AE1I';
+
+        async function fetchData() {
+            const loading = document.getElementById('loading');
+            const error = document.getElementById('error');
+            loading.style.display = 'block';
+            error.style.display = 'none';
+
+            const apiUrl = 'https://diu-routine-cbac2f8b6e30.herokuapp.com/swe-routine';
+            const proxies = [
+                { url: 'https://cors-anywhere.herokuapp.com/', name: 'cors-anywhere' },
+                { url: 'https://api.allorigins.win/raw?url=', name: 'allorigins' }
+            ];
+
+            for (const proxy of proxies) {
+                try {
+                    const response = await fetch(proxy.url + apiUrl, {
+                        headers: {
+                            'Accept': 'application/json'
+                        }
+                    });
+
+                    if (!response.ok) {
+                        const text = await response.text();
+                        if (proxy.name === 'cors-anywhere' && response.status === 403) {
+                            throw new Error(`CORS proxy access denied. Visit <a href="https://cors-anywhere.herokuapp.com/corsdemo" target="_blank">corsdemo</a> to request temporary access, then refresh the page.`);
+                        }
+                        throw new Error(`HTTP ${response.status}: ${text.slice(0, 100)}...`);
+                    }
+
+                    const contentType = response.headers.get('content-type');
+                    if (!contentType || !contentType.includes('application/json')) {
+                        const text = await response.text();
+                        throw new Error(`Expected JSON, got ${contentType}: ${text.slice(0, 100)}...`);
+                    }
+
+                    data = await response.json();
+                    updateTable();
+                    loading.style.display = 'none';
+                    return;
+                } catch (err) {
+                    console.error(`Fetch error with ${proxy.name}:`, err);
+                    if (proxy.name === proxies[proxies.length - 1].name) {
+                        error.innerHTML = `Error: ${err.message}<br>Try visiting the API directly: <a href="${apiUrl}" target="_blank">${apiUrl}</a>`;
+                        error.style.display = 'block';
+                    }
+                }
+            }
+
+            loading.style.display = 'none';
+        }
+
+        function updateTable() {
+            const limit = parseInt(document.getElementById('limit').value) || 5;
+            const tableBody = document.getElementById('tableBody');
+            const error = document.getElementById('error');
+            tableBody.innerHTML = '';
+
+            if (limit < 1) {
+                error.textContent = 'Please enter a number greater than 0';
+                error.style.display = 'block';
+                return;
+            }
+
+            error.style.display = 'none';
+            const filteredData = data.slice(0, Math.min(limit, data.length));
+
+            filteredData.forEach(item => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>SWE</td>
+                    <td>${item.day || ''}</td>
+                    <td>${item.room || ''}</td>
+                    <td>${item.time || ''}</td>
+                    <td>${item.batch || ''}</td>
+                    <td>${item.section || ''}</td>
+                    <td>${item.course || ''}</td>
+                    <td>${item.ti || ''}</td>
+                `;
+                tableBody.appendChild(row);
+            });
+        }
+
+        async function uploadToSupabase() {
+    if (!data.length) return alert("No data to upload. Please wait for the fetch to complete.");
+
+    const grouped = {};
+    data.forEach(item => {
+        if (!item.batch) return;
+        if (!grouped[item.batch]) grouped[item.batch] = [];
+        grouped[item.batch].push(item);
+    });
+
+    const logBox = document.getElementById('log');
+    logBox.textContent = 'Uploading to Supabase...\n';
+
+    // Delete all existing data first
+    try {
+        const deleteRes = await fetch(`${SUPABASE_URL}/rest/v1/swe_routine`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+                'apikey': SUPABASE_API_KEY,
+                'Authorization': `Bearer ${SUPABASE_API_KEY}`,
+                'Prefer': 'resolution=merge-duplicates'
+            }
+        });
+        if (deleteRes.ok) {
+            logBox.textContent += '✅ Deleted existing data in swe_routine table.\n';
+        } else {
+            const deleteErr = await deleteRes.text();
+            logBox.textContent += `❌ Deletion Error: ${deleteErr}\n`;
+        }
+    } catch (err) {
+        logBox.textContent += `❌ Deletion Error: ${err.message}\n`;
+    }
+
+    // Insert new data batch-wise
+    for (const [batch, items] of Object.entries(grouped)) {
+        try {
+            const res = await fetch(`${SUPABASE_URL}/rest/v1/swe_routine`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'apikey': SUPABASE_API_KEY,
+                    'Authorization': `Bearer ${SUPABASE_API_KEY}`,
+                    'Prefer': 'resolution=merge-duplicates'
+                },
+                body: JSON.stringify([{ batch, data: items }]) // Inserting grouped data
+            });
+
+            if (!res.ok) {
+                const errText = await res.text();
+                logBox.textContent += `❌ Batch ${batch}: Error - ${errText}\n`;
+            } else {
+                logBox.textContent += `✅ Batch ${batch}: Uploaded successfully\n`;
+            }
+        } catch (err) {
+            logBox.textContent += `❌ Batch ${batch}: ${err.message}\n`;
+        }
+    }
+
+    logBox.textContent += '✅ Upload complete.';
+}
+
+
+        fetchData();
+    </script>
+</body>
+</html>
